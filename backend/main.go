@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -24,8 +25,21 @@ type Video struct {
 var db *gorm.DB
 
 func init() {
-	var err error
-	dsn := "host=localhost user=youruser dbname=yourdb sslmode=disable password=yourpassword"
+	// Load environment variables from .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Database connection
+	dsn := fmt.Sprintf(
+		"host=%s user=%s dbname=%s sslmode=disable password=%s port=%s",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_PORT"),
+	)
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
@@ -36,7 +50,7 @@ func init() {
 func main() {
 	r := gin.Default()
 	r.POST("/upload", uploadHandler)
-	r.Run(":8080")
+	r.Run(":" + os.Getenv("BACKEND_PORT")) // Use BACKEND_PORT from .env
 }
 
 func uploadHandler(c *gin.Context) {
@@ -56,12 +70,16 @@ func uploadHandler(c *gin.Context) {
 
 	// Upload to AWS S3
 	sess, _ := session.NewSession(&aws.Config{
-		Region:      aws.String("your-region"),
-		Credentials: credentials.NewStaticCredentials("your-access-key", "your-secret-key", ""),
+		Region:      aws.String(os.Getenv("AWS_REGION")),
+		Credentials: credentials.NewStaticCredentials(
+			os.Getenv("AWS_ACCESS_KEY_ID"),
+			os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			"",
+		),
 	})
 	uploader := s3manager.NewUploader(sess)
 	result, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String("your-bucket-name"),
+		Bucket: aws.String(os.Getenv("S3_BUCKET_NAME")),
 		Key:    aws.String(file.Filename),
 		Body:   src,
 	})
